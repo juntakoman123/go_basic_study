@@ -3,6 +3,7 @@ package poker
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -17,18 +18,23 @@ var dummyStdIn = &bytes.Buffer{}
 var dummyStdOut = &bytes.Buffer{}
 
 type GameSpy struct {
-	StartedWith  int
-	FinishedWith string
-	StartCalled  bool
+	StartCalled     bool
+	StartCalledWith int
+	BlindAlert      []byte
+
+	FinishedCalled   bool
+	FinishCalledWith string
 }
 
-func (g *GameSpy) Start(numberOfPlayers int) {
-	g.StartedWith = numberOfPlayers
+func (g *GameSpy) Start(numberOfPlayers int, out io.Writer) {
 	g.StartCalled = true
+	g.StartCalledWith = numberOfPlayers
+	out.Write(g.BlindAlert)
+
 }
 
 func (g *GameSpy) Finish(winner string) {
-	g.FinishedWith = winner
+	g.FinishCalledWith = winner
 }
 
 func TestCLI(t *testing.T) {
@@ -86,7 +92,7 @@ type SpyBlindAlerter struct {
 	alerts []scheduledAlert
 }
 
-func (s *SpyBlindAlerter) ScheduleAlertAt(duration time.Duration, amount int) {
+func (s *SpyBlindAlerter) ScheduleAlertAt(duration time.Duration, amount int, to io.Writer) {
 	s.alerts = append(s.alerts, scheduledAlert{duration, amount})
 }
 
@@ -97,25 +103,37 @@ func assertScheduledAlert(t testing.TB, got, want scheduledAlert) {
 	}
 }
 
-func assertFinishCalledWith(t testing.TB, game *GameSpy, FinishedWith string) {
+func assertFinishCalledWith(t testing.TB, game *GameSpy, winner string) {
 	t.Helper()
 
-	want := FinishedWith
-	got := game.FinishedWith
+	passed := retryUntil(500*time.Millisecond, func() bool {
+		return game.FinishCalledWith == winner
+	})
 
-	if got != want {
-		t.Errorf("got %v want %v", got, want)
+	if !passed {
+		t.Errorf("expected finish called with %q but got %q", winner, game.FinishCalledWith)
 	}
+}
+
+func retryUntil(d time.Duration, f func() bool) bool {
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		if f() {
+			return true
+		}
+	}
+	return false
 }
 
 func assertGameStartedWith(t testing.TB, game *GameSpy, StartedWith int) {
 	t.Helper()
 
-	want := StartedWith
-	got := game.StartedWith
+	passed := retryUntil(500*time.Millisecond, func() bool {
+		return game.StartCalledWith == StartedWith
+	})
 
-	if got != want {
-		t.Errorf("got %d want %d", got, want)
+	if !passed {
+		t.Errorf("expected StartedWith %d but got %d", StartedWith, game.StartCalledWith)
 	}
 }
 
