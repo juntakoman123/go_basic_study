@@ -73,7 +73,7 @@ func (w windowedRoman) Symbols() (symbols [][]byte) {
 		symbol := w[i]
 		notAtEnd := i+1 < len(w)
 
-		if notAtEnd && isSubtractive(symbol) && allRomanNumerals.Exists(symbol, w[i+1]) {
+		if notAtEnd && allRomanNumerals.Exists(symbol, w[i+1]) {
 			symbols = append(symbols, []byte{byte(symbol), byte(w[i+1])})
 			i++
 		} else {
@@ -81,8 +81,4 @@ func (w windowedRoman) Symbols() (symbols [][]byte) {
 		}
 	}
 	return
-}
-
-func isSubtractive(symbol uint8) bool {
-	return symbol == 'I' || symbol == 'X' || symbol == 'C'
 }
